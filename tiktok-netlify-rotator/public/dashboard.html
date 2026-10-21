@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Redirect Traffic Dashboard</title>
+  <style>
+    :root{font-family:system-ui,-apple-system,Segoe UI,sans-serif;color-scheme:dark;background:#090d17;color:#eef2ff}
+    *{box-sizing:border-box}body{margin:0;padding:38px 16px}main{max-width:1000px;margin:auto}
+    h1{font-size:clamp(26px,4vw,38px);margin:0 0 8px}.muted{color:#aab7cf}header{margin-bottom:28px}
+    .panel{border:1px solid #28344c;background:#131d2e;border-radius:16px;padding:22px;margin-bottom:20px}
+    .controls{display:flex;flex-wrap:wrap;gap:10px}.controls input{flex:1;min-width:190px;padding:12px;border-radius:9px;border:1px solid #46536c;background:#0d1422;color:white}
+    button{border:none;border-radius:9px;padding:12px 18px;background:#4c77ff;color:white;font-weight:700;cursor:pointer}
+    .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px}.number{font-size:30px;font-weight:750}
+    .overflow{overflow-x:auto}table{width:100%;border-collapse:collapse;text-align:left}td,th{padding:13px 10px;border-bottom:1px solid #29364e}a{color:#a5bfff;word-break:break-all} .bar{height:8px;background:#25334d;border-radius:30px;min-width:80px}.fill{height:100%;background:#6489ff;border-radius:30px}.error{color:#ff9898}
+  </style>
+</head>
+<body><main>
+  <header><h1>Traffic dashboard</h1><p class="muted">Server-side redirect totals. Does not measure unique people, conversions, or TikTok eligibility.</p></header>
+  <section class="panel"><label for="key">Admin key (not saved)</label><div class="controls" style="margin-top:9px"><input id="key" type="password" autocomplete="off" placeholder="Enter ADMIN_KEY"><button id="refresh">Load statistics</button></div><p id="message" class="muted" aria-live="polite">Your browser sends the admin key only to this site's stats function.</p></section>
+  <div class="metrics"><section class="panel"><div class="muted">Total redirects</div><div id="total" class="number">—</div></section><section class="panel"><div class="muted">Active destinations</div><div id="count" class="number">—</div></section><section class="panel"><div class="muted">Target per link</div><div id="avg" class="number">—</div></section></div>
+  <section class="panel overflow"><h2>Destination breakdown</h2><table><thead><tr><th>#</th><th>Destination</th><th>Redirects</th><th>Share</th></tr></thead><tbody id="rows"><tr><td colspan="4" class="muted">Enter your admin key and load statistics.</td></tr></tbody></table></section>
+</main><script>
+  const $=id=>document.getElementById(id);
+  $('refresh').addEventListener('click',async()=>{
+    const key=$('key').value.trim();if(!key){$('message').textContent='Enter your admin key.';return}
+    $('message').textContent='Loading…';$('message').className='muted';$('refresh').disabled=true;
+    try{
+      const resp=await fetch('/api/stats',{headers:{Authorization:`Bearer ${key}`},cache:'no-store'});
+      if(!resp.ok)throw new Error(resp.status===401?'Incorrect admin key':`Request failed (${resp.status})`);
+      const data=await resp.json();$('total').textContent=data.totalRedirects.toLocaleString();$('count').textContent=data.linkCount;
+      $('avg').textContent=(data.totalRedirects/data.linkCount).toFixed(1);
+      $('rows').replaceChildren();
+      data.destinations.forEach(item=>{
+        const row=document.createElement('tr');
+        const index=document.createElement('td');index.textContent=item.index;
+        const url=document.createElement('td');const anchor=document.createElement('a');anchor.href=item.url;anchor.target='_blank';anchor.rel='noopener noreferrer';anchor.textContent=item.url;url.append(anchor);
+        const visits=document.createElement('td');visits.textContent=item.redirects.toLocaleString();
+        const share=document.createElement('td');const percent=data.totalRedirects?item.redirects/data.totalRedirects*100:0;
+        share.textContent=`${percent.toFixed(2)}% `;const bar=document.createElement('div');bar.className='bar';const fill=document.createElement('div');fill.className='fill';fill.style.width=`${Math.min(100,percent*data.linkCount)}%`;bar.append(fill);share.append(bar);
+        row.append(index,url,visits,share);$('rows').append(row);
+      });$('message').textContent='Updated just now.';
+    }catch(err){$('message').textContent=err.message;$('message').className='error'}finally{$('refresh').disabled=false}
+  });
+</script></body></html>

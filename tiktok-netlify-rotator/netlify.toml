@@ -1,0 +1,33 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[[redirects]]
+  from = "/"
+  to = "/.netlify/functions/rotate"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/go"
+  to = "/.netlify/functions/rotate"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/stats"
+  to = "/.netlify/functions/stats"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/links"
+  to = "/.netlify/functions/links"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/admin"
+  to = "/admin.html"
+  status = 200
+  force = true

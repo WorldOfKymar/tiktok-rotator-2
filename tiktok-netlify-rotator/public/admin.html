@@ -1,15 +1,93 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Redirect Link Manager</title>
-<style>
-:root{font-family:system-ui,-apple-system,sans-serif;color-scheme:dark;background:#0b1020;color:#edf3ff}*{box-sizing:border-box}body{margin:0;padding:28px 15px}main{max-width:880px;margin:auto}h1{margin-bottom:6px}a{color:#a9bbff}.muted{color:#aab7cb}.panel{background:#161f31;border:1px solid #33415b;border-radius:16px;padding:22px;margin:18px 0}input,textarea{background:#0b1322;color:#fff;border:1px solid #52617a;border-radius:9px;padding:12px;width:100%;font:inherit}textarea{min-height:340px;resize:vertical;white-space:pre;overflow-wrap:normal}button{border:0;border-radius:9px;background:#6385ff;color:#fff;padding:12px 19px;font-weight:700;cursor:pointer}button:disabled{opacity:.5}label{font-weight:650}.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.row input{flex:1;min-width:180px}.success{color:#77e7a3}.error{color:#ff9eaa}.small{font-size:14px}
-</style></head><body><main><h1>Link Manager</h1><p class="muted">Paste your active TikTok Pro links, one per line. Saving changes the live rotation immediately—no GitHub commit or Netlify redeploy needed.</p>
-<section class="panel"><label for="password">Your ADMIN_KEY</label><div class="row" style="margin-top:9px"><input id="password" type="password" autocomplete="off" placeholder="Enter admin password"><button id="load">Load current links</button></div><p class="muted small">Password stays in this tab and is never saved by this page.</p></section>
-<section class="panel"><div class="row" style="justify-content:space-between"><label for="links">Active links</label><span class="muted small" id="count">0 links</span></div><p class="muted small">Replace the list with your new links, or edit individual lines. Each line must be a TikTok Pro URL. At least one link is required.</p><textarea id="links" placeholder="https://pro.tiktok.com/t/example-code/" spellcheck="false"></textarea><div class="row" style="margin-top:14px"><button id="save">Save and activate links</button><span id="status" aria-live="polite" class="muted">Load links first to avoid overwriting your current list.</span></div><p class="muted small">Saving resets the rotation position so the new list starts at link 1. Historical redirect counts remain attributed to their original URLs. <a href="/dashboard.html">View traffic statistics →</a></p></section></main>
-<script>
-const $=id=>document.getElementById(id);let loaded=false;let changed=false;
-function lines(){return $('links').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean)}
-function status(msg,cls='muted'){$('status').textContent=msg;$('status').className=cls}
-$('links').addEventListener('input',()=>{$('count').textContent=lines().length+' links';changed=true});
-$('load').addEventListener('click',async()=>{const key=$('password').value;if(!key){status('Enter your admin key first.','error');return}if(changed&&!confirm('Discard your unsaved edits and load the currently active links?'))return; $('load').disabled=true;status('Loading links…');try{const r=await fetch('/api/links',{headers:{Authorization:'Bearer '+key},cache:'no-store'});if(!r.ok)throw Error(r.status===401?'Incorrect admin key':'Could not load links ('+r.status+')');const data=await r.json();$('links').value=data.links.join('\n');$('count').textContent=data.links.length+' links';loaded=true;changed=false;status('Loaded current active links.','success')}catch(e){status(e.message,'error')}finally{$('load').disabled=false}});
-$('save').addEventListener('click',async()=>{if(!loaded){status('Load your current links first.','error');return}const key=$('password').value;if(!key){status('Enter your admin key.','error');return}const urls=lines();if(!urls.length){status('At least one link is required.','error');return}if(new Set(urls).size!==urls.length){status('Remove duplicate links.','error');return}if(!confirm('Replace all active rotation links with these '+urls.length+' links?'))return;$('save').disabled=true;status('Saving…');try{const r=await fetch('/api/links',{method:'PUT',headers:{Authorization:'Bearer '+key,'Content-Type':'application/json'},body:JSON.stringify({links:urls}),cache:'no-store'});if(!r.ok)throw Error(await r.text());changed=false;status('Saved! '+urls.length+' links are now active.','success')}catch(e){status(e.message,'error')}finally{$('save').disabled=false}});
-</script></body></html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow"><meta name="theme-color" content="#0b1120">
+  <title>GeeLark • Profile Operations</title>
+  <link rel="stylesheet" href="/assets/app.css">
+  <script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-icon">G</div><div><strong>GeeLark Ops</strong><span>Profile command center</span></div></div>
+      <div class="sidegroup"><p>WORKSPACE</p>
+        <button class="nav active" data-view="profiles"><span>▦</span> Profiles & links</button>
+        <button class="nav" data-view="import"><span>⇪</span> Import profiles</button>
+        <button class="nav" data-view="daily"><span>▥</span> Daily redirect stats</button>
+        <button class="nav" data-view="activity"><span>↗</span> Activity & claims</button>
+      </div>
+      <div class="sidebar-bottom"><span class="live-dot"></span> Netlify + Redis <small>Live redirect operations</small><p>Timezone: <strong>New York (ET)</strong></p><a href="/dashboard.html">Legacy dashboard bookmark ↗</a></div>
+    </aside>
+    <div class="workspace">
+      <header class="topbar"><div><span class="eyebrow">OPERATIONS DASHBOARD</span><h1>Profile command center</h1><p class="subtitle">Control rotation, track points, and record your daily claims.</p></div><div class="top-actions"><span id="dayIndicator" class="day-pill">New York date: —</span><button id="refreshBtn" class="btn secondary" disabled>↻ Refresh</button></div></header>
+      <main>
+        <section id="loginPanel" class="login-card"><div class="login-symbol">🔐</div><div class="login-intro"><h2>Connect your admin dashboard</h2><p>Enter the same <code>ADMIN_KEY</code> configured in Netlify. Your key stays only in this browser tab's memory.</p></div><form id="loginForm" class="login-form"><input id="keyInput" type="password" autocomplete="off" placeholder="Your ADMIN_KEY" required><button class="btn primary" type="submit">Open manager →</button></form></section>
+        <section id="appContent" hidden>
+          <div id="migrationNote" class="notice" hidden><strong>Legacy links detected.</strong> Existing links without GeeLark profile numbers are marked “Legacy.” Use <b>Import profiles → Replace active rotation</b> to switch to your numbered profiles without deleting earlier data. <button type="button" id="goImportLegacy">Open importer</button></div>
+          <div class="metrics">
+            <div class="metric"><span>Total redirect assignments</span><strong id="metricRedirects">—</strong><small id="metricLegacy">Since upgrade: —</small></div>
+            <div class="metric"><span>Active GeeLark profiles</span><strong id="metricActive">—</strong><small id="metricProfiles">— profiles loaded</small></div>
+            <div class="metric"><span>Completed today</span><strong id="metricDone">—</strong><small>Daily checkmarks · New York time</small></div>
+            <div class="metric"><span>Recorded $50 claims</span><strong id="metricClaims">—</strong><small id="metricClaimsTotal">— total claimed</small></div>
+          </div>
+          <section id="profilesView" class="view">
+            <div class="panel"><div class="panel-header"><div><h2>Profiles & rotation links</h2><p>Check the left box when a profile is done for today. It clears automatically at midnight ET.</p></div><button id="jumpImport" class="btn primary">+ Add / paste profiles</button></div>
+              <div class="toolbar"><label class="search-wrap"><span>⌕</span><input id="searchProfiles" placeholder="Search profile # or TikTok URL"></label><select id="statusFilter"><option value="all">All profiles</option><option value="active">Active only</option><option value="inactive">Inactive only</option><option value="notdone">Not done today</option><option value="done">Done today</option><option value="claimable">Enough points to claim</option><option value="claimed">Claimed today</option></select><span id="tableCount" class="count-label">— results</span></div>
+              <div class="bulkbar"><label><input id="selectAll" type="checkbox"> Select visible</label><span id="selectedCount">0 selected</span><button class="btn light small" id="bulkEnable">Enable selected</button><button class="btn light small" id="bulkDisable">Disable selected</button><button class="btn light small" id="exportCsv">Export CSV</button><button class="btn light small" id="backupJson">Backup JSON</button></div>
+              <div class="table-scroll"><table><thead><tr><th title="Daily complete, resets every midnight New York time">DONE<br>TODAY</th><th>GEELARK PROFILE</th><th>ROTATION LINK</th><th>STATUS</th><th>POINT BALANCE</th><th>CLAIM $50</th><th>REDIRECTS<br> TODAY / TOTAL</th><th>SELECT</th></tr></thead><tbody id="profileRows"><tr><td colspan="8" class="empty">Unlock the manager to load your profiles.</td></tr></tbody></table></div>
+              <div class="panel-foot"><span>Redirect counts measure assignments by this website—not TikTok-valid referrals, unique visits, or verified rewards.</span><span id="lastSync">—</span></div>
+            </div>
+          </section>
+          <section id="importView" class="view" hidden>
+            <div class="panel import-panel"><div class="panel-header"><div><h2>Bulk import GeeLark profiles</h2><p>Paste the text exactly as you receive it. Profile numbers and TikTok links are matched automatically.</p></div><span class="tag accent">Auto-detect profile #</span></div>
+              <div class="info-example"><b>Supported formats</b><code>235 https://pro.tiktok.com/t/EXAMPLE123/</code><small>Also accepts numbered lists, Markdown links and extra “Scan the QR code” text between entries.</small></div>
+              <label for="pasteInput" class="field-label">Paste profile numbers and links</label><textarea id="pasteInput" spellcheck="false" rows="12" placeholder="235 https://pro.tiktok.com/t/your-link/&#10;233 Don't miss out on rewards! https://pro.tiktok.com/t/another-link/&#10;234 https://pro.tiktok.com/t/third-link/"></textarea>
+              <div class="import-actions"><button id="previewImport" class="btn secondary">Preview parsed profiles</button><label class="mode-option"><input type="radio" name="importMode" value="merge" checked><span><b>Merge with existing</b><small>Keep profiles not in paste unchanged</small></span></label><label class="mode-option"><input type="radio" name="importMode" value="replaceActive"><span><b>Replace active rotation</b><small>Deactivate unlisted profiles, preserve history</small></span></label></div>
+              <div id="importPreview" class="preview" hidden><div id="previewSummary"></div><div id="previewWarnings"></div><div class="preview-scroll"><table><thead><tr><th>GeeLark profile</th><th>TikTok URL</th></tr></thead><tbody id="previewRows"></tbody></table></div><div class="preview-footer"><span>Existing balances and claim history are preserved when a profile's link changes.</span><button id="saveImport" class="btn primary">Save profiles & update rotation</button></div></div>
+            </div>
+          </section>
+          <section id="dailyView" class="view" hidden>
+            <div class="panel">
+              <div class="panel-header">
+                <div><h2>Daily link & redirect reports</h2><p>Compare dates and see which GeeLark profile <em>and exact URL</em> received each redirect assignment.</p></div>
+                <button id="downloadDailyCsv" class="btn primary">↓ Export daily CSV</button>
+              </div>
+              <div class="report-controls">
+                <label>Report window
+                  <select id="reportDays"><option value="7">Last 7 days</option><option value="14">Last 14 days</option><option value="30" selected>Last 30 days</option><option value="90">Last 90 days</option></select>
+                </label>
+                <label>Through this date (ET)
+                  <input id="reportEnd" type="date">
+                </label>
+                <button id="applyReport" class="btn secondary">Apply dates</button>
+                <button id="reportToday" class="btn light">Back to today</button>
+              </div>
+              <p class="report-footnote">All days run midnight–midnight America/New_York (EST or EDT automatically). Counts mean redirect responses issued—not verified TikTok visitors or rewards.</p>
+              <div class="report-metrics">
+                <div class="report-metric"><small>Total in range</small><strong id="reportTotal">—</strong></div>
+                <div class="report-metric"><small>Average per day</small><strong id="reportAverage">—</strong></div>
+                <div class="report-metric"><small>Busiest day</small><strong id="reportBest">—</strong></div>
+                <div class="report-metric"><small>Period</small><strong id="reportPeriod">—</strong></div>
+              </div>
+              <h3>Redirects by day</h3>
+              <div class="daily-chart-scroll"><div id="dailyTrafficChart" class="daily-traffic-chart"></div></div>
+              <div class="report-table-scroller"><table class="report-table"><thead><tr><th>DATE (ET)</th><th>REDIRECTS</th><th>PROFILES WITH REDIRECTS</th><th>UNIQUE URLS TRACKED</th><th></th></tr></thead><tbody id="dailyTotalsRows"></tbody></table></div>
+            </div>
+            <div class="panel" id="dailyDrilldown">
+              <div class="panel-header"><div><h2 id="dailyDetailTitle">Daily profile & link breakdown</h2><p id="dailyDetailSubtitle">Choose a date above to inspect every destination.</p></div><label class="detail-search">Search profile or URL<input id="dailyLinkSearch" type="search" placeholder="Profile # / TikTok URL"></label></div>
+              <div class="report-table-scroller"><table class="report-table"><thead><tr><th>PROFILE</th><th>DESTINATION AT REDIRECT TIME</th><th>REDIRECTS</th></tr></thead><tbody id="dailyDetailRows"></tbody></table></div>
+              <p class="report-footnote">URL-level tracking starts with this upgrade. Earlier V3 daily profile totals remain visible, but older links that weren't recorded are shown as “URL not recorded.” If a profile's link changes, new redirects are assigned to the new URL while its old URL counts remain in history.</p>
+            </div>
+          </section>
+          <section id="activityView" class="view" hidden>
+            <div class="two-columns"><div class="panel"><h2>7 most recent days in selected report</h2><p>Daily redirect totals use America/New_York dates. Use the Daily redirect stats tab to change the reporting period.</p><div id="trafficChart" class="traffic-chart"></div></div><div class="panel"><h2>Point & claim summary</h2><div class="summary-row"><span>Points entered across profiles</span><strong id="sumPoints">—</strong></div><div class="summary-row"><span>Eligible to record $50 claim</span><strong id="sumEligible">—</strong></div><div class="summary-row"><span>Claims recorded overall</span><strong id="sumClaims">—</strong></div><div class="summary-row"><span>Recorded claim value</span><strong id="sumValue">—</strong></div><p class="disclaimer">Claims here are your own bookkeeping records, not proof of actual redemption or payment from TikTok.</p></div></div>
+            <div class="panel"><div class="panel-header"><div><h2>Recent admin activity</h2><p>Imports, claims and claim reversals are recorded. Profile checkboxes and point edits are reflected in the current state.</p></div><button id="refreshActivity" class="btn secondary">↻ Refresh</button></div><div id="activityList" class="activity-list"></div></div>
+          </section>
+          <div id="toast" role="status" aria-live="polite" hidden></div>
+        </section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>

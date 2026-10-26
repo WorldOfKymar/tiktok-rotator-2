@@ -15,19 +15,21 @@
   force = true
 
 [[redirects]]
-  from = "/api/stats"
-  to = "/.netlify/functions/stats"
-  status = 200
-  force = true
-
-[[redirects]]
-  from = "/api/links"
-  to = "/.netlify/functions/links"
-  status = 200
-  force = true
-
-[[redirects]]
   from = "/admin"
   to = "/admin.html"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/dashboard"
+  to = "/admin.html"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/admin"
+  to = "/.netlify/functions/admin"
+  status = 200
+  force = true
+
+# Existing dashboard bookmark still works and opens the new manager.
